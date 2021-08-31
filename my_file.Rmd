@@ -1,0 +1,620 @@
+---
+title: "kk"
+author: "Avadhoot"
+date: "6/15/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+library(tidyverse)
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(ggmap)
+library(phenofit)
+setwd("C:/Users/avdho/Desktop/SEM/DATA MINING/Project/data_to_work_with2")
+table1 <- read.csv("H-1B_Disclosure_RAW_Data_FY15.csv",stringsAsFactors = FALSE)
+table2 <- read.csv("H-1B_Disclosure_RAW_Data_FY16.csv",stringsAsFactors = FALSE)
+table3 <- read.csv("H-1B_Disclosure_RAW_Data_FY17.csv",stringsAsFactors = FALSE)
+
+table4 <- read.csv("H-1B_Disclosure_RAW_Data_FY18.csv",stringsAsFactors = FALSE)
+getwd()
+
+```
+
+PREPARING DATASET
+```{r}
+names(table2)[24] <- 'TOTAL_WORKERS'
+names(table2)[29] <- 'PW_SOURCE_YEAR'
+names(table2)[30] <- 'PW_SOURCE_OTHER'
+names(table2)[28] <- 'PW_SOURCE'
+names(table2)[23] <- 'NAICS_CODE'
+names(table2)[34] <- 'H1B_DEPENDENT'
+
+```
+
+
+```{r}
+new <- table2[ ,!(colnames(table2) %in% c('CASE_NUMBER','CASE_STATUS','CASE_SUBMITTED','DECISION_DATE','VISA_CLASS','EMPLOYMENT_START_DATE','EMPLOYMENT_END_DATE','EMPLOYER_NAME','EMPLOYER_ADDRESS1','EMPLOYER_ADDRESS2','EMPLOYER_CITY','EMPLOYER_STATE','EMPLOYER_POSTAL_CODE','EMPLOYER_COUNTRY','EMPLOYER_PROVINCE','EMPLOYER_PHONE','EMPLOYER_PHONE_EXT','AGENT_ATTORNEY_NAME','AGENT_ATTORNEY_CITY','AGENT_ATTORNEY_STATE','JOB_TITLE','SOC_CODE','SOC_NAME','NAIC_CODE','TOTAL WORKERS','FULL_TIME_POSITION','PREVAILING_WAGE','PW_UNIT_OF_PAY','PW_WAGE_LEVEL','PW_WAGE_SOURCE','PW_WAGE_SOURCE_YEAR','PW_WAGE_SOURCE_OTHER','WAGE_RATE_OF_PAY','WAGE_UNIT_OF_PAY','H-1B_DEPENDENT','WILLFUL VIOLATOR','WORKSITE_CITY','WORKSITE_COUNTY','WORKSITE_STATE','WORKSITE_POSTAL_CODE'))]
+
+common_cols <- intersect(colnames(table3),colnames(table4))
+df <- rbind(table3[,common_cols],table4[, common_cols])
+
+common_cols1 <- intersect(colnames(df),colnames(table2)) 
+df_new <- rbind(df[,common_cols1],table2[, common_cols1])
+
+
+
+colnames(table1)
+colnames(df_new)
+df_new <- df_new %>% filter( VISA_CLASS =="H-1B")
+colnames(df_new)
+
+df_new <- df_new[,c(-1,-5,-9,-12,-14,-15,-16,-17,-39)]
+table1 <- table1[,c(-1,-9,-10,-13,-15,-16,-17,-18,-40)]
+table1 <- table1 %>% filter( VISA_CLASS =="H-1B")
+table1 <- table1[,c(-4)]
+names(table1)[26]<-"H1B_DEPENDENT"
+names(table1)[27]<-"WILLFUL_VIOLATOR"
+names(table1)[15]<-"NAICS_CODE"
+names(table1)[16] <- 'TOTAL_WORKERS'
+names(table1)[22] <- 'PW_SOURCE_YEAR'
+names(table1)[23] <- 'PW_SOURCE_OTHER'
+names(table1)[21] <- 'PW_SOURCE'
+unique(df_new$EMPLOYER_COUNTRY)    ##talk about employer country
+table1<-cbind(as.data.frame(str_split_fixed(table1$WAGE_RATE_OF_PAY,"-",2)),table1)
+colnames(table1)
+names(table1)[1]<-"WAGE_RATE_OF_PAY_FROM"
+names(table1)[2]<-"WAGE_RATE_OF_PAY_TO"
+
+str(table1$WAGE_RATE_OF_PAY)
+
+intersect_new <- intersect(colnames(df_new),colnames(table1))   #Join table1 with df_new--number of common coloumns
+final <- rbind(df_new[,intersect_new],table1[, intersect_new])
+
+```
+
+```{r}
+NROW(final$CASE_STATUS)
+
+data.frame(colnames(final))
+sapply(final, function(x) sum(is.na(x)))
+
+
+
+# to replace missing values in columns by NA
+#1) 
+sum(final$CASE_SUBMITTED %in% "")
+final$CASE_SUBMITTED <- replace(final$CASE_SUBMITTED, final$CASE_SUBMITTED == "", NA)
+table(is.na(final$CASE_SUBMITTED))
+
+#2)
+sum(final$EMPLOYMENT_START_DATE %in% "")
+final$EMPLOYMENT_START_DATE <- replace(final$EMPLOYMENT_START_DATE, final$EMPLOYMENT_START_DATE == "", NA)
+table(is.na(final$EMPLOYMENT_START_DATE))
+
+#3) 
+sum(final$EMPLOYMENT_END_DATE %in% "")
+final$EMPLOYMENT_END_DATE <- replace(final$EMPLOYMENT_END_DATE, final$EMPLOYMENT_END_DATE == "", NA)
+table(is.na(final$EMPLOYMENT_END_DATE))
+
+#4) 
+sum(final$EMPLOYER_NAME %in% "")
+final$EMPLOYER_NAME <- replace(final$EMPLOYER_NAME, final$EMPLOYER_NAME =="", NA)
+table(is.na(final$EMPLOYER_NAME))
+
+#5) 
+sum(final$EMPLOYER_CITY %in% "")
+final$EMPLOYER_CITY <- replace(final$EMPLOYER_CITY, final$EMPLOYER_CITY =="", NA)
+table(is.na(final$EMPLOYER_CITY))
+
+#6)
+sum(final$EMPLOYER_STATE %in% "")
+final$EMPLOYER_STATE <- replace(final$EMPLOYER_STATE, final$EMPLOYER_STATE == "", NA)
+table(is.na(final$EMPLOYER_STATE))
+
+#7) 
+sum(final$EMPLOYER_COUNTRY %in% "")
+final$EMPLOYER_COUNTRY <- replace(final$EMPLOYER_COUNTRY, final$EMPLOYER_COUNTRY =="", NA)
+table(is.na(final$EMPLOYER_COUNTRY))
+
+#8) 
+unique(final$AGENT_ATTORNEY_CITY) # missing values -> ""
+sum(final$AGENT_ATTORNEY_CITY %in% "")
+final$AGENT_ATTORNEY_CITY <- replace(final$AGENT_ATTORNEY_CITY, final$AGENT_ATTORNEY_CITY == "", NA)
+table(is.na(final$AGENT_ATTORNEY_CITY))
+
+#9) 
+sum(final$AGENT_ATTORNEY_STATE %in% "")
+final$AGENT_ATTORNEY_STATE <- replace(final$AGENT_ATTORNEY_STATE, final$AGENT_ATTORNEY_STATE == "", NA)
+table(is.na(final$AGENT_ATTORNEY_STATE))
+
+#10)
+sum(final$JOB_TITLE %in% "")
+final$JOB_TITLE <- replace(final$JOB_TITLE, final$JOB_TITLE == "", NA)
+table(is.na(final$JOB_TITLE))
+
+#11)
+sum(final$SOC_CODE %in% "")
+final$SOC_CODE <- replace(final$SOC_CODE, final$SOC_CODE == "", NA)
+table(is.na(final$SOC_CODE))
+
+#12) 
+sum(final$SOC_NAME %in% "")
+final$SOC_NAME <- replace(final$SOC_NAME, final$SOC_NAME == "", NA)
+table(is.na(final$SOC_NAME))
+
+#13) 
+sum(final$NAICS_CODE %in% "")
+final$NAICS_CODE <- replace(final$NAICS_CODE, final$NAICS_CODE =="", NA)
+table(is.na(final$NAICS_CODE))
+
+#14)
+sum(final$FULL_TIME_POSITION %in% "")
+final$FULL_TIME_POSITION <- replace(final$FULL_TIME_POSITION, final$FULL_TIME_POSITION == "", NA)
+table(is.na(final$FULL_TIME_POSITION))
+
+#15)
+sum(final$PREVAILING_WAGE %in% "")
+final$PREVAILING_WAGE <- replace(final$PREVAILING_WAGE, final$PREVAILING_WAGE == "", NA)
+table(is.na(final$PREVAILING_WAGE))
+
+#16) 
+sum(final$PW_UNIT_OF_PAY %in% "")
+final$PW_UNIT_OF_PAY <- replace(final$PW_UNIT_OF_PAY, final$PW_UNIT_OF_PAY == "", NA)
+table(is.na(final$PW_UNIT_OF_PAY))
+
+#18)
+sum(final$PW_SOURCE %in% "")
+final$PW_SOURCE <- replace(final$PW_SOURCE, final$PW_SOURCE == "", NA)
+table(is.na(final$PW_SOURCE))
+
+#19) 
+sum(final$PW_SOURCE_YEAR %in% "")
+final$PW_SOURCE_YEAR <- replace(final$PW_SOURCE_YEAR, final$PW_SOURCE_YEAR == "", NA)
+table(is.na(final$PW_SOURCE_YEAR))
+
+#20) 
+sum(final$PW_SOURCE_OTHER %in% "")
+final$PW_SOURCE_OTHER <- replace(final$PW_SOURCE_OTHER, final$PW_SOURCE_OTHER == "", NA)
+table(is.na(final$PW_SOURCE_OTHER))
+
+#21) 
+sum(final$WAGE_RATE_OF_PAY_FROM %in% "")
+final$WAGE_RATE_OF_PAY_FROM <- replace(final$WAGE_RATE_OF_PAY_FROM, final$WAGE_RATE_OF_PAY_FROM == "", NA) 
+table(is.na(final$WAGE_RATE_OF_PAY_FROM))
+
+#22)
+sum(final$WAGE_RATE_OF_PAY_TO %in% "")
+final$WAGE_RATE_OF_PAY_TO <- replace(final$WAGE_RATE_OF_PAY_TO, final$WAGE_RATE_OF_PAY_TO == "", NA)
+table(is.na(final$WAGE_RATE_OF_PAY_TO))
+
+#23)
+sum(final$WAGE_UNIT_OF_PAY %in% "")
+final$WAGE_UNIT_OF_PAY <- replace(final$WAGE_UNIT_OF_PAY, final$WAGE_UNIT_OF_PAY == "", NA)
+table(is.na(final$WAGE_UNIT_OF_PAY))
+
+#24)
+sum(final$H1B_DEPENDENT %in% "")
+final$H1B_DEPENDENT <- replace(final$H1B_DEPENDENT, final$H1B_DEPENDENT == "", NA)
+table(is.na(final$H1B_DEPENDENT))
+
+#25) 
+sum(final$WILLFUL_VIOLATOR %in% "")
+final$WILLFUL_VIOLATOR <- replace(final$WILLFUL_VIOLATOR, final$WILLFUL_VIOLATOR =="", NA)
+table(is.na(final$WILLFUL_VIOLATOR))
+
+#26) 
+sum(final$WORKSITE_CITY %in% "")
+final$WORKSITE_CITY <- replace(final$WORKSITE_CITY, final$WORKSITE_CITY == "", NA)
+table(is.na(final$WORKSITE_CITY))
+
+#27) 
+sum(final$WORKSITE_COUNTY %in% "")
+final$WORKSITE_COUNTY <- replace(final$WORKSITE_COUNTY, final$WORKSITE_COUNTY == "", NA)
+table(is.na(final$WORKSITE_COUNTY))
+
+#28) 
+sum(final$WORKSITE_STATE %in% "")
+final$WORKSITE_STATE <- replace(final$WORKSITE_STATE, final$WORKSITE_STATE == "", NA)
+table(is.na(final$WORKSITE_STATE))
+
+str(final$AGENT_ATTORNEY_CITY)
+
+final$CASE_SUBMITTED
+final <- final %>% drop_na(-FULL_TIME_POSITION)
+unique(final$CASE_STATUS)
+kk<-final %>% filter(CASE_STATUS == "CERTIFIED"|CASE_STATUS =="DENIED")
+
+
+```
+
+
+
+
+
+```{r}
+
+rmov_col <- kk[c(3,6,7,8,9,10,11,15,22,23,24,25,28,29)]
+colnames(rmov_col)
+kk <- kk[-c(3,6,7,8,9,10,11,15,22,23,24,25,28,29)]
+data.frame(colnames(kk))
+```
+
+
+Removing all NAs
+```{r}
+str(kk)
+sapply(kk, function(x) sum(is.na(x))) #gives NAs
+summary(kk)
+
+table(is.na(kk$FULL_TIME_POSITION)) #348136 NAs
+unique(kk$FULL_TIME_POSITION)
+summary(kk$FULL_TIME_POSITION)
+
+kk %>%
+  group_by(FULL_TIME_POSITION) %>%
+  summarise(count = n(), percentage = 100*count/dim(kk)[1])
+#there are total 31.3% NA values in FULL_TIME_POSITION
+# lets see what happens when we remove all the rows with NAs
+kk <- kk[!is.na(kk$FULL_TIME_POSITION),] #dataset without any NAs (removed all the NAs)
+NROW(kk$CASE_STATUS)
+
+summary(kk$FULL_TIME_POSITION)
+summary(kk)
+sapply(kk, function(x) sum(is.na(x)))
+data.frame(colnames(kk))
+# seems like we have a hell lot of rows to operate with...(762928 rows)
+
+```
+
+
+Creating Job Catagories
+```{r}
+
+kknew <- kk %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"11-"),'Management Occupations',SOC_NAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^11"),'Management Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"^11"),'Management Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"13-"),'Business and Financial Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^13"),'Business and Financial Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"^13"),'Business and Financial Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"15-"),'Computer and Mathematical Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^15"),'Computer and Mathematical Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"^15"),'Computer and Mathematical Operations Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"17-"),'Architecture and Engineering Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^17"),'Architecture and Engineering Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"^17"),'Architecture and Engineering Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"19-"),'Life,Physical,and Social Science Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^19"),'Life,Physical,and Social Science Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"21-"),'Community and Social Service Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^21"),'Community and Social Service Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^23"),'Legal Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"23-"),'Legal Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"23-"),'Legal Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"15-1121"),'Computer and Mathematical Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"25-"),'Educational Instrction and Library Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"27-"),'Arts, Design,Entertainment,Sports, and Media Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^27"),'Arts, Design,Entertainment,Sports, and Media Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"29-"),'Healthcare Practitioners and Technical Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^29"),'Healthcare Practitioners and Technical Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"^29"),'Healthcare Practitioners and Technical Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"31-"),'Healthcare Support Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^31"),'Healthcare Support Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"33-"),'Protective Service Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^33"),'Protective Service Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"35-"),'Food Preparation and Serving Related Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^35"),'Food Preparation and Serving Related Occupations',NewSOCNAME))
+
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"37-"),'Building and Grounds Cleaning Maintenance Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^37"),'Building and Grounds Cleaning Maintenance Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"39-"),'Persoanl Care and Service Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^39"),'Persoanl Care and Service Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"41-"),'Sales and Related Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^41"),'Sales and Related Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"43-"),'Office and Administrative Support Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^43"),'Office and Administrative Support Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"COMPUTER"),'Computer and Mathematical Operations Occupations',NewSOCNAME))
+
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"45-"),'Farming Fishing and Forestry Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^45"),'Farming Fishing and Forestry Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"47-"),'Construction and Extraction Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^47"),'Construction and Extraction Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"49-"),'Installation, Repair and Maintenance Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^49"),'Installation, Repair and Maintenance Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"51-"),'Production Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^51"),'Production Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(SOC_CODE,"53-"),'Transportation and Material Moving Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"^53"),'Transportation and Material Moving Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(!str_detect(SOC_CODE,"-"),'NA',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"SOFTWARE"),'Production Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"ENGINEERS"),'Architecture and Engineering Occupations',NewSOCNAME))
+
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"SOFTWARE"),'Computer and Mathematical Operations Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"ENGINEERS"),'Architecture and Engineering Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"PEDIATRICIANS"),'Healthcare Practitioners and Technical Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"PRACTITIONERS"),'Healthcare Practitioners and Technical Occupations',NewSOCNAME))
+kknew <- kknew %>% mutate(NewSOCNAME = ifelse(str_detect(NewSOCNAME,"SURGEONS"),'Healthcare Practitioners and Technical Occupations',NewSOCNAME))
+kknew<-kknew %>% filter(NewSOCNAME!="NA")
+
+kknew[kknew$SOC_CODE=="",]<-NA
+kknew<-drop_na(kknew)
+
+unique(kknew$NewSOCNAME)
+
+h1b <- kknew
+
+rm(table1, table2, table3, table4)
+
+```
+
+
+
+
+```{r}
+
+#CONVERSION OF DATES TO NUMERIC VALUES
+h1b$CASE_SUBMITTED <- as.POSIXct(h1b$CASE_SUBMITTED,format = "%m/%d/%Y")
+#h1b$DECISION_DATE <- as.POSIXct(h1b$DECISION_DATE,format = "%m/%d/%Y")
+
+h1b$EMPLOYMENT_START_DATE <- as.POSIXct(h1b$EMPLOYMENT_START_DATE,format = "%m/%d/%Y")
+h1b$EMPLOYMENT_END_DATE <- as.POSIXct(h1b$EMPLOYMENT_END_DATE,format = "%m/%d/%Y")
+
+#converting to numeric data type
+#h1b$WAGE_RATE_OF_PAY_FROM<-as.numeric(as.factor(h1b$WAGE_RATE_OF_PAY_FROM))
+#h1b$WAGE_RATE_OF_PAY_TO<-as.numeric(as.factor(h1b$WAGE_RATE_OF_PAY_TO))
+#h1b$PREVAILING_WAGE<-as.numeric(as.factor(h1b$WAGE_RATE_OF_PAY_TO))
+h1b$TOTAL_WORKERS<-as.numeric(as.factor(h1b$TOTAL_WORKERS))
+h1b$PW_SOURCE_YEAR<-as.numeric(as.factor(h1b$PW_SOURCE_YEAR))
+
+```
+
+
+Create new variables:
+SUBMITTED_MONTH = month on which the case was submitted
+Employment_time = EMPLOYMENT_END_DATE - EMPLOYMENT_START_DATE
+
+```{r}
+h1b %>%
+  group_by(CASE_SUBMITTED) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+str(h1b)
+#h1b$process_time <- as.Date(as.character(h1b$DECISION_DATE), format="%Y-%m-%d") -
+#  as.Date(as.character(h1b$CASE_SUBMITTED), format = "%Y-%m-%d")
+
+#unique(h1b$process_time)                               
+
+library (lubridate)
+#CONVERSION OF DATES TO NUMERIC VALUES
+h1b$CASE_SUBMITTED <- as.POSIXct(h1b$CASE_SUBMITTED,format = "%m/%d/%Y")
+h1b$YEAR <- year(h1b$CASE_SUBMITTED)
+h1b$SUBMITTED_MONTH <- month(h1b$CASE_SUBMITTED)
+
+
+h1b$Employment_Time <- as.Date(as.character(h1b$EMPLOYMENT_END_DATE), format="%Y-%m-%d") - as.Date(as.character(h1b$EMPLOYMENT_START_DATE), format = "%Y-%m-%d")
+
+max(h1b$Employment_Time)
+
+data.frame(colnames(h1b))
+
+h1b <- h1b[-c(2,3,4,5,6,7,11,13,18)] #removing YEAR for model exp
+data.frame(colnames(h1b))
+
+```
+
+
+```{r}
+#rm(kk, kknew, new, rmov_col,df, df_new, final)
+
+#LOGISTIC REGRESSION :
+data.frame(colnames(h1b))
+library(ggplot2)
+library(cowplot)
+# to check how many values each observation has for CERTIFIED / DENIED condition 
+xtabs(~CASE_STATUS + FULL_TIME_POSITION, data = h1b)
+xtabs(~CASE_STATUS + TOTAL_WORKERS, data = h1b)
+xtabs(~CASE_STATUS + PW_SOURCE, data = h1b)
+xtabs(~CASE_STATUS + H1B_DEPENDENT, data = h1b)
+xtabs(~CASE_STATUS + WILLFUL_VIOLATOR, data = h1b)
+xtabs(~CASE_STATUS + NewSOCNAME, data = h1b)
+xtabs(~CASE_STATUS + SUBMITTED_MONTH, data = h1b)
+
+# now lets make test and train sets
+h1b %>%
+  group_by(CASE_STATUS) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+data.frame(colnames(h1b))
+h1b <- h1b[-c(8)]
+
+# there are only 9643 DENIED cases in the set. Dataset is highly imbalanced 
+# we need to balance the dataset while we split it 
+set.seed(123)
+# now we need to conver the variables into numerical 
+library(caret)
+l <- h1b[c(1,3,5,6,7,8,9)]
+m <- h1b[-c(1,3,5,6,7,8,9)]
+
+dmy <- dummyVars("~.", data = l, fullRank = T)
+trsf <- data.frame(predict(dmy, newdata = l))
+trsf
+
+data.frame(colnames(m))
+logist_reg <- cbind(trsf, m) # the full dataset with dummies
+data.frame(colnames(logist_reg))
+
+#rm(dmy, h1b, l, m, trsf) # removing all datasets which i will not use here
+
+
+###
+library(DMwR)
+library(caret)
+str(logist_reg)
+prop.table(table(logist_reg$CASE_STATUSDENIED))
+
+
+set.seed(1234)
+splitIndex <- createDataPartition(logist_reg$CASE_STATUSDENIED, p=0.6, 
+                                  list=FALSE, 
+                                  times = 1)
+trainSplit <- logist_reg[splitIndex,]
+testSplit <- logist_reg[-splitIndex,]
+
+table(trainSplit$CASE_STATUSDENIED)
+prop.table(table(trainSplit$CASE_STATUSDENIED))
+
+```
+
+
+
+```{r}
+###ROSE:
+library(ROSE)
+table(trainSplit$CASE_STATUSDENIED)
+NROW(logist_reg)
+NROW(trainSplit)
+
+# BOTH:
+#train_both <- ovun.sample(CASE_STATUSDENIED~., data = trainSplit, method = "both")$data
+#table(train_both$target)
+#prop.table(table(train_both$CASE_STATUSDENIED))
+
+#trying to apply logistic regression to this training dataset
+#train_both$target <- factor(train_both$CASE_STATUSDENIED)
+#train_both <- train_both[-c(1)]
+#model1 <- glm(target~., data = train_both, family = "binomial") #dooes not run cause its a big dataset
+
+
+# 
+
+### UNDERSAMPLING:
+
+train_under <- ovun.sample(CASE_STATUSDENIED~., data = trainSplit, method = "under")$data
+table(train_under$CASE_STATUSDENIED)
+
+model2 <- glm(CASE_STATUSDENIED~., data = train_under, family = "binomial")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+VISUALIZATIONS
+```{r}
+h1b %>% ggplot(aes(x = CASE_STATUS)) +
+  geom_bar()
+#As we can see here,our data is highly imbalanced like hell, so we have to balance it first
+
+#applications per year
+h1b %>% ggplot(aes(x = YEAR)) +
+  geom_bar() 
+
+h1b %>% ggplot(aes(x = FULL_TIME_POSITION)) +
+  geom_bar() 
+
+
+h1b %>% ggplot(aes(y = WORKSITE_STATE)) +
+  geom_bar()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+Creating dummy variables
+```{r}
+data.frame(colnames(kknew))
+library(caret)
+#FULL_TIME, PW_SOURCE, H1B_DEPENDENT, WWLLFUL_VIOLATOR, [NewSOCNAMES]
+
+l <- kknew[c(8,10,12,13,16)]
+m <- kknew[-c(8,10,12,13,16)]
+#
+dmy <- dummyVars("~.", data = l, fullRank = T)
+trsf <- data.frame(predict(dmy, newdata = l))
+trsf
+#
+
+data.frame(colnames(m))
+kk2 <- cbind(trsf, m)
+data.frame(colnames(kk2))
+kk2 <- kk3
+kk3 <- kk3[-c(33,34,37)]
+```
+
+
+SPLIT DATASET
+# at this stage out data is ready.....Almost!!
+# We need to split the data into train(60%) and test(40%) datasets
+
+```{r}
+set.seed(123)
+n <- nrow(kk3)
+shuffled_df <- kk3[sample(n), ]
+train_indices <- 1:round(0.6 * n)
+train <- shuffled_df[train_indices, ]
+test_indices <- (round(0.6 * n) + 1):n
+test <- shuffled_df[test_indices, ]
+
+NROW(kk3$CASE_STATUS)
+NROW(train$CASE_STATUS)
+NROW(test$CASE_STATUS)
+
+```
+
+LET'S VISUALIZE
+```{r}
+train %>% ggplot(aes(x = CASE_STATUS)) +
+  geom_bar()
+
+train %>%
+  group_by(CASE_STATUS) %>%
+  summarise(count = n(), percentage = 100*count/dim(kk)[1]) %>%
+  arrange(desc(count))
+
+```
+As we can see here,our data is highly imbalanced like hell, so we have to balance it first
